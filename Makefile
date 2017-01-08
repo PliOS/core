@@ -3,7 +3,6 @@
 # Use of this source code is governed by a MIT-style license that can be found
 # in the LICENSE file.
 
-TARGET ?= x86_64-unknown-linux-musl
 ARCH ?= x86_64
 
 BUSYBOX_URL ?= https://busybox.net/downloads/binaries/1.26.1-defconfig-multiarch/busybox-$(ARCH)
@@ -14,27 +13,33 @@ QEMU_DRIVE ?= file=build/sysroot.img,format=raw,if=ide
 
 QEMU_ARGS := -kernel $(QEMU_VMLINUZ) -append "$(QEMU_LINUX_ARGS)" -drive $(QEMU_DRIVE)
 
+export GOPATH := $(shell pwd)/.gopath
+export GOARCH := amd64
+export GOOS := linux
+export CGO_ENABLED := 0
+
 .PHONY: init optimize sysroot run
 
-all: init busybox optimize sysroot
+all: sysroot
 
-init:
-	@mkdir -p build/bin
-	@cd init && cargo build --target $(TARGET)
-	@cp init/target/$(TARGET)/debug/plios_init build/bin/init
+sysroot: init busybox
+	@./scripts/create_rootfs.sh /media/plios_sysroot build/
+
+init: .gopath/
+	@go get github.com/PliOS/core/init
+	@go install github.com/PliOS/core/init
+
+.gopath/:
+	@mkdir -p .gopath/src/github.com/PliOS/core
+	@mkdir -p .gopath/bin
+	@mkdir -p .gopath/pkg
+	@ln -s $(shell pwd)/init $(shell pwd)/.gopath/src/github.com/PliOS/core
 
 busybox: build/bin/busybox
 
 build/bin/busybox:
 	@cd build/bin && wget -O busybox $(BUSYBOX_URL)
 	@chmod a+x build/bin/busybox
-
-optimize: init busybox
-	@strip --strip-debug build/bin/init
-	@strip --strip-debug build/bin/busybox
-
-sysroot: optimize
-	@./scripts/create_rootfs.sh /media/plios_sysroot build/
 
 run:
 	@qemu-system-x86_64 $(QEMU_ARGS)

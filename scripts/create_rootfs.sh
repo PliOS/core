@@ -16,7 +16,7 @@ function create_image() {
 
     # Copy files
     sudo mkdir -p $1/{sbin,bin,proc,sys,dev,run}
-    sudo cp $2/bin/init $1/sbin/init
+    sudo cp .gopath/bin/init $1/sbin/init
     sudo cp $2/bin/busybox $1/bin/busybox
     sudo $1/bin/busybox --install $1/bin
 
