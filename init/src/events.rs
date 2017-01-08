@@ -10,6 +10,8 @@ use std::process::Command;
 use libc;
 
 use nix::sys::signal::SigSet;
+use nix::sys::reboot::reboot;
+use nix::sys::reboot::RebootMode;
 
 use utils::HandleableError;
 
@@ -60,13 +62,16 @@ pub fn handle_events() {
                 println!("systemctl target reboot");
             }
             FORCEFUL_HALT => {
-                println!("forceful halt");
+                println!("Halting system...");
+                reboot(RebootMode::RB_HALT_SYSTEM);
             }
             FORCEFUL_SHUTDOWN => {
-                println!("forceful shutdown");
+                println!("Shutting down system...");
+                reboot(RebootMode::RB_POWER_OFF);
             }
             FORCEFUL_REBOOT => {
-                println!("forceful reboot");
+                println!("Restarting system...");
+                reboot(RebootMode::RB_AUTOBOOT);
             }
             RECOVERY => {
                 println!("systemctl target recovery");
