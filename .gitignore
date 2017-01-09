@@ -1,4 +1,3 @@
 .vagrant/
-.gopath/
 .DS_Store
 build/

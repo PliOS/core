@@ -13,7 +13,7 @@ QEMU_DRIVE ?= file=build/sysroot.img,format=raw,if=ide
 
 QEMU_ARGS := -kernel $(QEMU_VMLINUZ) -append "$(QEMU_LINUX_ARGS)" -drive $(QEMU_DRIVE)
 
-export GOPATH := $(shell pwd)/.gopath
+export GOPATH := $(shell pwd)/build/gopath
 export GOARCH := amd64
 export GOOS := linux
 export CGO_ENABLED := 0
@@ -25,15 +25,17 @@ all: sysroot
 sysroot: init busybox
 	@./scripts/create_rootfs.sh /media/plios_sysroot build/
 
-init: .gopath/
+init: gopath
 	@go get github.com/PliOS/core/init
 	@go install github.com/PliOS/core/init
 
-.gopath/:
-	@mkdir -p .gopath/src/github.com/PliOS/core
-	@mkdir -p .gopath/bin
-	@mkdir -p .gopath/pkg
-	@ln -s $(shell pwd)/init $(shell pwd)/.gopath/src/github.com/PliOS/core
+gopath: build/gopath/
+
+build/gopath/:
+	@mkdir -p build/gopath/src/github.com/PliOS/core
+	@mkdir -p build/gopath/bin
+	@mkdir -p build/gopath/pkg
+	@ln -s $(shell pwd)/init $(shell pwd)/build/gopath/src/github.com/PliOS/core
 
 busybox: build/bin/busybox
 
