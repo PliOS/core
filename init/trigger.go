@@ -92,12 +92,12 @@ func ProcessAction(commandString string, selfpipe chan string, execCommands chan
 		}
 
 		command := ExecCommand{
-			Program: command[1],
+			Program:   command[1],
 			Arguments: command[2:],
 		}
 
 		execCommands <- command
-		<- execFinished
+		<-execFinished
 	case "mount":
 		if len(command) < 4 {
 			log.Fatalf("Fatal error - invalid command: %s", commandString)
@@ -247,7 +247,7 @@ func ProcessAction(commandString string, selfpipe chan string, execCommands chan
 
 		service := ServiceAction{
 			Service: command[1],
-			Action: command[0],
+			Action:  command[0],
 		}
 
 		serviceActions <- service
