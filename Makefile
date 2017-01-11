@@ -7,7 +7,7 @@ ARCH ?= x86_64
 
 BUSYBOX_URL ?= https://busybox.net/downloads/binaries/1.26.1-defconfig-multiarch/busybox-$(ARCH)
 
-QEMU_VMLINUZ ?=  build/vmlinuz-4.8.0-32-generic
+QEMU_VMLINUZ ?=  build/vmlinuz
 QEMU_LINUX_ARGS ?= root=/dev/sda vga=0x344 devtmpfs.mount=0
 QEMU_DRIVE ?= file=build/sysroot.img,format=raw,if=ide
 
@@ -18,24 +18,30 @@ export GOARCH := amd64
 export GOOS := linux
 export CGO_ENABLED := 0
 
-.PHONY: init optimize sysroot run
+GOPATH_LOC := $(GOPATH)/src/github.com/PliOS/core/
+
+.PHONY: sysroot init service_manager gopath run
 
 all: sysroot
 
-sysroot: init busybox
+sysroot: init service_manager busybox
 	@./scripts/create_rootfs.sh /media/plios_sysroot build/
 
 init: gopath
+	@./scripts/pprint.sh "Downloading dependencies for" "init"
 	@go get github.com/PliOS/core/init
+	@./scripts/pprint.sh "Building" "init"
 	@go install github.com/PliOS/core/init
 
-gopath: build/gopath/
+gopath: $(GOPATH_LOC) $(GOPATH_LOC)init
 
-build/gopath/:
-	@mkdir -p build/gopath/src/github.com/PliOS/core
+$(GOPATH_LOC):
+	@mkdir -p $(GOPATH_LOC)
 	@mkdir -p build/gopath/bin
 	@mkdir -p build/gopath/pkg
-	@ln -s $(shell pwd)/init $(shell pwd)/build/gopath/src/github.com/PliOS/core
+
+$(GOPATH_LOC)init:
+	ln -s $(shell pwd)/init $(GOPATH_LOC)
 
 busybox: build/bin/busybox
 

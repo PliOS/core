@@ -1,0 +1,13 @@
+[environment]
+LANG = "UTF-8"
+
+[triggers]
+init = [
+    "mount ext4 /dev/sda / remount", 
+    "exec sh",
+    "trigger hello",
+    "trigger world"
+]
+
+[services.sh]
+program = "sh"
