@@ -7,7 +7,6 @@ package main
 
 import (
 	log "github.com/Sirupsen/logrus"
-	"golang.org/x/sys/unix"
 	"os"
 	"os/signal"
 	"syscall"
@@ -51,33 +50,6 @@ func ProcessSignals(triggers chan<- string) {
 			triggers <- "reboot"
 		case SIGNAL_RECOVERY:
 			triggers <- "recovery"
-		}
-	}
-}
-
-func ReapChildren(pids chan<- int) {
-	signals := make(chan os.Signal, 1)
-	signal.Notify(signals, unix.SIGCHLD)
-
-	for range signals {
-		for {
-			var status unix.WaitStatus
-			pid, err := unix.Wait4(-1, &status, unix.WNOHANG, nil)
-
-			switch err {
-			case nil:
-				if pid <= 0 {
-					break
-				} else {
-					log.WithFields(log.Fields{
-						"pid": pid,
-					}).Debugf("Reaped process")
-
-					pids <- pid
-				}
-			default:
-				break
-			}
 		}
 	}
 }
