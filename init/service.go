@@ -62,7 +62,7 @@ func RunServices(config *Config, pidDied chan int, serviceActions chan ServiceAc
 					servicePids[runningServices[service]] = service
 
 					log.WithFields(log.Fields{
-						"name": service,
+						"name":   service,
 						"oldPid": processDied,
 						"newPid": runningServices[service],
 					}).Debugf("Respawned service")
@@ -71,7 +71,7 @@ func RunServices(config *Config, pidDied chan int, serviceActions chan ServiceAc
 
 					log.WithFields(log.Fields{
 						"name": service,
-						"pid": processDied,
+						"pid":  processDied,
 					}).Debugf("Service died")
 				}
 			}
@@ -93,7 +93,7 @@ func RunServices(config *Config, pidDied chan int, serviceActions chan ServiceAc
 
 					log.WithFields(log.Fields{
 						"name": serviceAction.Service,
-						"pid": runningServices[serviceAction.Service],
+						"pid":  runningServices[serviceAction.Service],
 					}).Debugf("Started service")
 				}
 			case "stop":
@@ -103,7 +103,7 @@ func RunServices(config *Config, pidDied chan int, serviceActions chan ServiceAc
 
 					log.WithFields(log.Fields{
 						"name": serviceAction.Service,
-						"pid": pid,
+						"pid":  pid,
 					}).Debugf("Stopped service")
 				}
 			case "restart":
@@ -112,7 +112,7 @@ func RunServices(config *Config, pidDied chan int, serviceActions chan ServiceAc
 
 					log.WithFields(log.Fields{
 						"name": serviceAction.Service,
-						"pid": pid,
+						"pid":  pid,
 					}).Debugf("Restarted service")
 				}
 			}
