@@ -8,7 +8,7 @@ init = [
 ]
 
 shutdown = [
-    "stop sh",
+    "stopwaitkill sh 100ms",
     "umount /",
     "reboot shutdown",
 ]

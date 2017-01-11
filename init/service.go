@@ -8,121 +8,126 @@ package main
 import (
 	log "github.com/Sirupsen/logrus"
 	"golang.org/x/sys/unix"
-	"os"
-	"os/exec"
+	"sync"
 )
 
-type ServiceAction struct {
-	Service string
-	Action  string
+type ServiceManager struct {
+	config          *Config
+	reaper          *GrimReaper
+	runningServices map[string]int
+	servicePids     map[int]string
+	serviceLock     sync.RWMutex
 }
 
-type ExecCommand struct {
-	Program   string
-	Arguments []string
+func NewServiceManager(config *Config, reaper *GrimReaper) *ServiceManager {
+	serviceManager := new(ServiceManager)
+	serviceManager.config = config
+	serviceManager.reaper = reaper
+
+	serviceManager.runningServices = map[string]int{}
+	serviceManager.servicePids = map[int]string{}
+
+	return serviceManager
 }
 
-func RunCommand(program string, arguments []string) int {
-	cmd := exec.Command(program, arguments...)
-	cmd.Stdin = os.Stdin
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
+func (self *ServiceManager) Start(name string) {
+	self.serviceLock.Lock()
 
-	if err := cmd.Start(); err != nil {
-		log.Fatalf("Fatal error - exec(%s, %v): %s", program, arguments, err)
+	if _, running := self.runningServices[name]; !running {
+		self.runningServices[name] = RunCommand(
+			self.config.Services[name].Program,
+			self.config.Services[name].Arguments,
+		)
+
+		self.servicePids[self.runningServices[name]] = name
+
+		log.WithFields(log.Fields{
+			"name": name,
+			"pid":  self.runningServices[name],
+		}).Debugf("Started service")
 	}
 
-	return cmd.Process.Pid
+	self.serviceLock.Unlock()
 }
 
-func RunServices(config *Config, pidDied chan int, serviceActions chan ServiceAction, execCommands chan ExecCommand, execFinished chan int) {
-	execPid := 0
+func (self *ServiceManager) Stop(name string) int {
+	self.serviceLock.Lock()
 
-	runningServices := map[string]int{}
-	servicePids := map[int]string{}
+	if pid, running := self.runningServices[name]; running {
+		unix.Kill(pid, unix.SIGTERM)
+		delete(self.runningServices, name)
 
-	for {
-		select {
-		case processDied := <-pidDied:
-			log.WithFields(log.Fields{
-				"pid": processDied,
-			}).Debugf("Process died")
+		log.WithFields(log.Fields{
+			"name": name,
+			"pid":  pid,
+		}).Debugf("Stopped service")
 
-			if processDied == execPid {
-				execFinished <- execPid
+		return pid
+	}
+
+	self.serviceLock.Unlock()
+
+	return 0
+}
+
+func (self *ServiceManager) Restart(name string) {
+	self.serviceLock.Lock()
+
+	if pid, running := self.runningServices[name]; running {
+		unix.Kill(pid, unix.SIGTERM)
+
+		log.WithFields(log.Fields{
+			"name": name,
+			"pid":  pid,
+		}).Debugf("Restarting service")
+	}
+
+	self.serviceLock.Unlock()
+}
+
+func (self *ServiceManager) respawn(service string, oldPid int) {
+	newPid := RunCommand(
+		self.config.Services[service].Program,
+		self.config.Services[service].Arguments,
+	)
+
+	self.runningServices[service] = newPid
+	self.servicePids[newPid] = service
+
+	delete(self.servicePids, oldPid)
+
+	log.WithFields(log.Fields{
+		"name":   service,
+		"oldPid": oldPid,
+		"newPid": newPid,
+	}).Debugf("Respawned service")
+}
+
+func (self *ServiceManager) Run() {
+	deadProcesses := self.reaper.WaitWildcard()
+
+	for deadProcess := range deadProcesses {
+		pid := deadProcess.Pid
+
+		log.WithFields(log.Fields{
+			"pid": pid,
+		}).Debugf("Process died")
+
+		self.serviceLock.Lock()
+
+		if service, running := self.servicePids[pid]; running {
+			if _, active := self.runningServices[service]; active {
+				self.respawn(service, pid)
+			} else {
+				delete(self.servicePids, pid)
+
+				log.WithFields(log.Fields{
+					"name": service,
+					"pid":  pid,
+				}).Debugf("Service died")
 			}
-
-			if service, running := servicePids[processDied]; running {
-				if _, active := runningServices[service]; active {
-					runningServices[service] = RunCommand(
-						config.Services[service].Program,
-						config.Services[service].Arguments,
-					)
-
-					servicePids[runningServices[service]] = service
-
-					log.WithFields(log.Fields{
-						"name":   service,
-						"oldPid": processDied,
-						"newPid": runningServices[service],
-					}).Debugf("Respawned service")
-				} else {
-					delete(servicePids, processDied)
-
-					log.WithFields(log.Fields{
-						"name": service,
-						"pid":  processDied,
-					}).Debugf("Service died")
-				}
-			}
-		case serviceAction := <-serviceActions:
-			log.WithFields(log.Fields{
-				"service": serviceAction.Service,
-				"action":  serviceAction.Action,
-			}).Debugf("Service action")
-
-			switch serviceAction.Action {
-			case "start":
-				if _, running := runningServices[serviceAction.Service]; !running {
-					runningServices[serviceAction.Service] = RunCommand(
-						config.Services[serviceAction.Service].Program,
-						config.Services[serviceAction.Service].Arguments,
-					)
-
-					servicePids[runningServices[serviceAction.Service]] = serviceAction.Service
-
-					log.WithFields(log.Fields{
-						"name": serviceAction.Service,
-						"pid":  runningServices[serviceAction.Service],
-					}).Debugf("Started service")
-				}
-			case "stop":
-				if pid, running := runningServices[serviceAction.Service]; running {
-					unix.Kill(pid, unix.SIGTERM)
-					delete(runningServices, serviceAction.Service)
-
-					log.WithFields(log.Fields{
-						"name": serviceAction.Service,
-						"pid":  pid,
-					}).Debugf("Stopped service")
-				}
-			case "restart":
-				if pid, running := runningServices[serviceAction.Service]; running {
-					unix.Kill(pid, unix.SIGTERM)
-
-					log.WithFields(log.Fields{
-						"name": serviceAction.Service,
-						"pid":  pid,
-					}).Debugf("Restarted service")
-				}
-			}
-		case execCommand := <-execCommands:
-			log.WithFields(log.Fields{
-				"program":   execCommand.Program,
-				"arguments": execCommand.Arguments,
-			}).Debugf("Executing command")
-
-			execPid = RunCommand(execCommand.Program, execCommand.Arguments)
 		}
+
+		self.serviceLock.Unlock()
 	}
 }

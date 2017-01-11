@@ -12,35 +12,47 @@ import (
 	"os"
 	"strconv"
 	"strings"
+	"time"
 )
 
-func ProcessTriggers(config *Config, triggers chan string, execCommands chan ExecCommand, execFinished chan int, serviceActions chan ServiceAction) {
-	selfpipe := make(chan string, 128)
+type TriggerRunner struct {
+	config         *Config
+	reaper         *GrimReaper
+	serviceManager *ServiceManager
+	triggerChan    chan string
+}
 
-	go SelfPipeTriggers(triggers, selfpipe)
+func NewTriggerRunner(config *Config, reaper *GrimReaper, serviceManager *ServiceManager) *TriggerRunner {
+	triggerRunner := new(TriggerRunner)
+	triggerRunner.config = config
+	triggerRunner.reaper = reaper
+	triggerRunner.serviceManager = serviceManager
+	triggerRunner.triggerChan = make(chan string, 128)
 
-	for trigger := range triggers {
+	return triggerRunner
+}
+
+func (self *TriggerRunner) RunTrigger(trigger string) {
+	self.triggerChan <- trigger
+}
+
+func (self *TriggerRunner) Run() {
+	for trigger := range self.triggerChan {
 		log.WithFields(log.Fields{
 			"trigger": trigger,
 		}).Infof("Received trigger")
 
-		for _, action := range config.Triggers[trigger] {
+		for _, action := range self.config.Triggers[trigger] {
 			log.WithFields(log.Fields{
 				"command": action,
 			}).Debugf("Executing command")
 
-			ProcessAction(action, selfpipe, execCommands, execFinished, serviceActions)
+			self.ProcessAction(action)
 		}
 	}
 }
 
-func SelfPipeTriggers(triggers chan string, selfpipe chan string) {
-	for trigger := range selfpipe {
-		triggers <- trigger
-	}
-}
-
-func ProcessAction(commandString string, selfpipe chan string, execCommands chan ExecCommand, execFinished chan int, serviceActions chan ServiceAction) {
+func (self *TriggerRunner) ProcessAction(commandString string) {
 	command := strings.Split(commandString, " ")
 
 	if len(command) < 1 {
@@ -91,13 +103,9 @@ func ProcessAction(commandString string, selfpipe chan string, execCommands chan
 			log.Fatalf("Fatal error - invalid command: %s", commandString)
 		}
 
-		command := ExecCommand{
-			Program:   command[1],
-			Arguments: command[2:],
-		}
+		pid := RunCommand(command[1], command[2:])
 
-		execCommands <- command
-		<-execFinished
+		<-self.reaper.WaitPid(pid)
 	case "mount":
 		if len(command) < 4 {
 			log.Fatalf("Fatal error - invalid command: %s", commandString)
@@ -240,23 +248,48 @@ func ProcessAction(commandString string, selfpipe chan string, execCommands chan
 		if err := unix.Rmdir(path); err != nil {
 			log.Fatalf("Fatal error - rmdir(%s): %s", path, err)
 		}
-	case "restart", "start", "stop":
+	case "start":
 		if len(command) != 2 {
 			log.Fatalf("Fatal error - invalid command: %s", commandString)
 		}
 
-		service := ServiceAction{
-			Service: command[1],
-			Action:  command[0],
+		self.serviceManager.Start(command[1])
+	case "restart":
+		if len(command) != 2 {
+			log.Fatalf("Fatal error - invalid command: %s", commandString)
 		}
 
-		serviceActions <- service
+		self.serviceManager.Restart(command[1])
+	case "stop":
+		if len(command) != 2 {
+			log.Fatalf("Fatal error - invalid command: %s", commandString)
+		}
+
+		self.serviceManager.Stop(command[1])
+	case "stopwaitkill":
+		if len(command) != 3 {
+			log.Fatalf("Fatal error - invalid command: %s", commandString)
+		}
+
+		timeout, err := time.ParseDuration(command[2])
+
+		if err != nil {
+			log.Fatalf("Fatal error - invalid command: %s", commandString)
+		}
+
+		pid := self.serviceManager.Stop(command[1])
+
+		select {
+		case <-self.reaper.WaitPid(pid):
+		case <-time.After(timeout):
+			unix.Kill(pid, unix.SIGKILL)
+		}
 	case "trigger":
 		if len(command) != 2 {
 			log.Fatalf("Fatal error - invalid command: %s", commandString)
 		}
 
-		selfpipe <- command[1]
+		self.triggerChan <- command[1]
 	case "reboot":
 		if len(command) != 2 {
 			log.Fatalf("Fatal error - invalid command: %s", commandString)

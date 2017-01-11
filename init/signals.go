@@ -32,7 +32,7 @@ func NotifyAllSignals(c chan<- os.Signal) {
 	}
 }
 
-func ProcessSignals(triggers chan<- string) {
+func ProcessSignals(triggerRunner *TriggerRunner) {
 	signals := make(chan os.Signal, 1)
 	NotifyAllSignals(signals)
 
@@ -43,13 +43,13 @@ func ProcessSignals(triggers chan<- string) {
 
 		switch signal {
 		case SIGNAL_HALT:
-			triggers <- "halt"
+			triggerRunner.RunTrigger("halt")
 		case SIGNAL_SHUTDOWN:
-			triggers <- "shutdown"
+			triggerRunner.RunTrigger("shutdown")
 		case SIGNAL_REBOOT:
-			triggers <- "reboot"
+			triggerRunner.RunTrigger("reboot")
 		case SIGNAL_RECOVERY:
-			triggers <- "recovery"
+			triggerRunner.RunTrigger("recovery")
 		}
 	}
 }
