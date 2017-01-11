@@ -257,6 +257,21 @@ func ProcessAction(commandString string, selfpipe chan string, execCommands chan
 		}
 
 		selfpipe <- command[1]
+	case "reboot":
+		if len(command) != 2 {
+			log.Fatalf("Fatal error - invalid command: %s", commandString)
+		}
+
+		switch command[1] {
+		case "halt":
+			unix.Reboot(unix.LINUX_REBOOT_CMD_HALT)
+		case "shutdown":
+			unix.Reboot(unix.LINUX_REBOOT_CMD_POWER_OFF)
+		case "restart":
+			unix.Reboot(unix.LINUX_REBOOT_CMD_RESTART)
+		default:
+			log.Fatalf("Fatal error - invalid command: %s", commandString)
+		}
 	default:
 		log.Fatalf("Fatal error - invalid command: %s", commandString)
 	}

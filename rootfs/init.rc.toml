@@ -7,5 +7,11 @@ init = [
     "start sh",
 ]
 
+shutdown = [
+    "stop sh",
+    "umount /",
+    "reboot shutdown",
+]
+
 [services.sh]
 program = "sh"
