@@ -20,7 +20,7 @@ export CGO_ENABLED := 0
 
 GOPATH_LOC := $(GOPATH)/src/github.com/PliOS/core/
 
-.PHONY: sysroot init service_manager gopath run
+.PHONY: sysroot init service_manager gopath run fmt
 
 all: sysroot
 
@@ -51,3 +51,8 @@ build/bin/busybox:
 
 run:
 	@qemu-system-x86_64 $(QEMU_ARGS)
+
+fmt: gopath
+	@./scripts/pprint.sh "Formatting" "init"
+	@cd $(GOPATH_LOC)/init && go fmt
+
