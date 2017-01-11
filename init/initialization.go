@@ -6,8 +6,8 @@
 package main
 
 import (
+	log "github.com/Sirupsen/logrus"
 	"golang.org/x/sys/unix"
-	"log"
 	"os"
 )
 
@@ -123,6 +123,12 @@ func SetupProcessEnvironment() {
 
 func MountApiFilesystems() {
 	for _, fs := range ApiFilesystems {
+		log.WithFields(log.Fields{
+			"source": fs.Source,
+			"target": fs.Target,
+			"fstype": fs.Fstype,
+		}).Debugf("Mounting filesystem")
+
 		if err := os.MkdirAll(fs.Target, fs.Mode); err != nil {
 			log.Fatalf("Fatal error - creating directory %s: %s", fs.Target, err)
 		}
@@ -135,6 +141,11 @@ func MountApiFilesystems() {
 
 func CreateApiSymlinks() {
 	for _, symlink := range ApiSymlinks {
+		log.WithFields(log.Fields{
+			"newname": symlink.Newname,
+			"oldname": symlink.Oldname,
+		}).Debugf("Creating symlink")
+
 		if _, err := os.Stat(symlink.Newname); err == nil {
 			continue
 		}
