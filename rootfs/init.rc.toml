@@ -3,10 +3,8 @@ LANG = "UTF-8"
 
 [triggers]
 init = [
-    "mount ext4 /dev/sda / remount", 
-    "exec sh",
-    "trigger hello",
-    "trigger world"
+    "mount ext4 /dev/root / remount", 
+    "start sh",
 ]
 
 [services.sh]

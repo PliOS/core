@@ -34,7 +34,6 @@ func main() {
 
 	go ReapChildren(pids)
 	go ProcessSignals(triggers)
-	go RunServices(pids, serviceActions, execCommands, execFinished)
-
+	go RunServices(config, pids, serviceActions, execCommands, execFinished)
 	ProcessTriggers(config, triggers, execCommands, execFinished, serviceActions)
 }
